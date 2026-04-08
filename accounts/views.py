@@ -81,5 +81,48 @@ def login(request):
             "name": user.get("fullname", ""),
             "role": user.get("role", ""),
             "address": user.get("address", "Location Unavailable"),
+            "phone": user.get("phone", ""),
+            "email": user.get("email", ""),
         }
     )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def update_profile(request):
+    """
+    Update user profile in MongoDB.
+    Expected JSON: { email, fullname, address, phone }
+    """
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON payload."}, status=400)
+
+    email = data.get("email", "").strip().lower()
+    if not email:
+        return JsonResponse({"error": "Email is required to identify user."}, status=400)
+
+    user = user_collection.find_one({"email": email})
+    if not user:
+        return JsonResponse({"error": "User not found."}, status=404)
+
+    update_fields = {}
+    if data.get("fullname"):
+        update_fields["fullname"] = data["fullname"].strip()
+    if data.get("address"):
+        update_fields["address"] = data["address"].strip()
+    if data.get("phone"):
+        update_fields["phone"] = data["phone"].strip()
+
+    if not update_fields:
+        return JsonResponse({"error": "No fields to update."}, status=400)
+
+    user_collection.update_one({"email": email}, {"$set": update_fields})
+
+    return JsonResponse({
+        "message": "Profile updated successfully.",
+        "name": update_fields.get("fullname", user.get("fullname", "")),
+        "address": update_fields.get("address", user.get("address", "")),
+        "phone": update_fields.get("phone", user.get("phone", "")),
+    })

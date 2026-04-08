@@ -1,0 +1,13 @@
+# Environment variables
+.env
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Optional: ignore virtual environment
+venv/
+.env/
+
+# Optional: ignore test file (only if needed)
+# test.py

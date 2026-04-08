@@ -21,9 +21,9 @@ def signup(request):
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON payload."}, status=400)
 
-        required_fields = ["fullname", "email", "password", "role"]
+        required_fields = ["fullname", "email", "password", "role", "address"]
         if not all(field in data and data[field] for field in required_fields):
-            return JsonResponse({"error": "Missing required fields."}, status=400)
+            return JsonResponse({"error": "Missing required fields (including address)."}, status=400)
 
         email = data["email"].strip().lower()
 
@@ -36,6 +36,7 @@ def signup(request):
             "email": email,
             "password": make_password(data["password"]),
             "role": data["role"],
+            "address": data["address"].strip(),
         }
 
         user_collection.insert_one(user_document)
@@ -79,5 +80,6 @@ def login(request):
         {
             "name": user.get("fullname", ""),
             "role": user.get("role", ""),
+            "address": user.get("address", "Location Unavailable"),
         }
     )

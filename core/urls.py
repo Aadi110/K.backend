@@ -16,4 +16,9 @@ urlpatterns = [
     path('manage-requests', views.manage_requests, name='manage-requests'),
     path('delete-order/<str:pk>', views.delete_order, name='delete-order'),
     path('delete-request/<str:pk>', views.delete_request, name='delete-request'),
+    
+    # eSewa Payment Integration
+    path('payment/initiate', views.initiate_payment, name='initiate-payment'),
+    path('payment/verify', views.verify_payment, name='verify-payment'),
+    path('transactions/farmer', views.get_farmer_transactions, name='farmer-transactions'),
 ]

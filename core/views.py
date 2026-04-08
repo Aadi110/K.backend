@@ -3,6 +3,12 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 from .mongo import db 
 from bson import ObjectId  # Crucial for MongoDB deletion/updates
+import hmac
+import hashlib
+import base64
+import uuid
+import os
+from datetime import datetime
 
 # 1. Fetch ALL products (for Vendor)
 @csrf_exempt
@@ -136,3 +142,83 @@ def delete_request(request, pk):
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
     return JsonResponse({"error": "Method not allowed"}, status=405)
+
+# --- eSewa Payment Integration ---
+
+@csrf_exempt
+def initiate_payment(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            amount_float = float(data.get("amount", 0))
+            if amount_float <= 0:
+                return JsonResponse({"error": "Invalid amount"}, status=400)
+                
+            # eSewa requires exact string matching. "50.0" in Python but "50" in JS form causes signature failure
+            amount_str = str(int(amount_float)) if amount_float.is_integer() else str(amount_float)
+            
+            transaction_uuid = str(uuid.uuid4())
+            product_code = os.getenv("ESEWA_MERCHANT_CODE", "EPAYTEST")
+            secret_key = os.getenv("ESEWA_SECRET_KEY", "8gBm/:&EnhH.1/q") 
+            
+            # CRITICAL: eSewa signature requires key=value format for the signed string!
+            message = f"total_amount={amount_str},transaction_uuid={transaction_uuid},product_code={product_code}"
+            
+            signature = base64.b64encode(
+                hmac.new(
+                    secret_key.encode('utf-8'),
+                    message.encode('utf-8'),
+                    hashlib.sha256
+                ).digest()
+            ).decode('utf-8')
+            
+            return JsonResponse({
+                "signature": signature,
+                "signed_field_names": "total_amount,transaction_uuid,product_code",
+                "transaction_uuid": transaction_uuid,
+                "product_code": product_code,
+                "amount": amount_str,
+                "tax_amount": "0",
+                "total_amount": amount_str,
+                "product_delivery_charge": "0",
+                "product_service_charge": "0"
+            })
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    return JsonResponse({"error": "Method not allowed"}, status=405)
+
+
+@csrf_exempt
+def verify_payment(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            # Example payload expected: farmer_id, vendor_id, crop_name, amount, status
+            
+            transaction_data = {
+                "farmer_id": data.get("farmer_id"),
+                "vendor_id": data.get("vendor_id"),
+                "crop_name": data.get("crop_name"),
+                "amount": data.get("amount"),
+                "status": data.get("status", "Completed"),
+                "timestamp": datetime.now().isoformat(),
+                "transaction_uuid": data.get("transaction_uuid", str(uuid.uuid4()))
+            }
+            db.transactions.insert_one(transaction_data)
+            return JsonResponse({"status": "success", "message": "Transaction verified and saved!"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    return JsonResponse({"error": "Method not allowed"}, status=405)
+
+
+@csrf_exempt
+def get_farmer_transactions(request):
+    farmer_name = request.GET.get('farmer')
+    if not farmer_name:
+        return JsonResponse({"error": "Farmer name required"}, status=400)
+        
+    transactions = list(db.transactions.find({"farmer_id": farmer_name}).sort("timestamp", -1))
+    for t in transactions:
+        t['id'] = str(t['_id'])
+        del t['_id']
+    return JsonResponse(transactions, safe=False)

@@ -160,6 +160,7 @@ def initiate_payment(request):
             transaction_uuid = str(uuid.uuid4())
             product_code = os.getenv("ESEWA_MERCHANT_CODE", "EPAYTEST")
             secret_key = os.getenv("ESEWA_SECRET_KEY", "8gBm/:&EnhH.1/q") 
+            esewa_url = "https://rc-epay.esewa.com.np/api/epay/main/v2/form" if product_code == "EPAYTEST" else "https://epay.esewa.com.np/api/epay/main/v2/form"
             
             # CRITICAL: eSewa signature requires key=value format for the signed string!
             message = f"total_amount={amount_str},transaction_uuid={transaction_uuid},product_code={product_code}"
@@ -181,7 +182,8 @@ def initiate_payment(request):
                 "tax_amount": "0",
                 "total_amount": amount_str,
                 "product_delivery_charge": "0",
-                "product_service_charge": "0"
+                "product_service_charge": "0",
+                "esewa_url": esewa_url
             })
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
